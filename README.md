@@ -1,20 +1,36 @@
 # Flow State — Traffic Lab
 
-An interactive, agent-based traffic simulation for exploring how road layout, road capacity, and arrival demand shape movement through a small city.
+Flow State is a full-stack, agent-based traffic simulator. A small Node.js API runs the authoritative traffic model; the browser configures experiments and renders live vehicles, roads, junction signals, and analytics.
 
-## Run it
+## Requirements and run
 
-Open `index.html` in a modern browser. The application is dependency-free and runs locally; it does not need a server or API key.
+- Node.js 18 or newer (built-in `fetch`, HTTP, and test runner APIs are used).
+- No third-party packages or API keys are required.
 
-## Explore
+From the project directory:
 
-- Choose a downtown grid, four-way junction, crossing flyover, or arterial network.
-- Change vehicle arrivals per minute and road capacity from one to four lanes.
-- Start, pause, reset, or run the model at up to four times its base speed.
-- Watch live vehicle counts, completed trips, average travel time, and network load.
+```powershell
+node server.js
+```
 
-## Model notes
+Open <http://127.0.0.1:4173>. To use a different port, set `PORT` before starting the server. On Windows PowerShell, run the test suite with:
 
-Each vehicle is an agent with an origin, destination, and a shortest-path route. Route cost increases with observed traffic. Vehicles slow down behind nearby cars, use wider-road spacing capacity, and wait for an available junction slot before turning. The flyover’s crossing links are visually separated, so the two road streams do not share a junction there.
+```powershell
+npm.cmd test
+```
 
-This is a compact exploratory model, not a calibrated traffic forecast. Demand is sampled stochastically and agents choose shortest routes; the model does not represent pedestrians, signal phase plans, vehicle classes, or measured city data.
+## Features
+
+- Four configurable networks: downtown grid, signalized cross, crossing flyover, and wide arterial.
+- Vehicles spawn at a configurable arrival rate (1–90 per simulated minute), choose shortest routes with a live congestion cost, and move as individual agents along road links.
+- One to four lanes in each direction change vehicle capacity and lane assignment.
+- Junctions with three or more connected roads receive alternating north/south and east/west green phases. Green duration is configurable from 4–45 simulated seconds. Red approaches queue and accumulate waiting time.
+- The flyover crosses the other road at a separate graph level. Vehicles can cross visually, but the two streams do not share an intersection.
+- Live average wait and travel time per completed trip, completed trips per simulated minute, active vehicles, road load, and signal phases.
+- Matched-seed scenario comparison holds demand, lane count, signal timing, and seed constant while changing the road network. Comparison duration is configurable from 1–10 minutes.
+
+## Model and limitations
+
+The simulation uses a fixed-step, microscopic agent model with shortest-path routing, per-lane following distance, junction occupancy, and fixed-time signal phases. Scenario comparison uses a seeded random generator for repeatability. Average wait and travel time are computed over completed trips; throughput is completed trips divided by elapsed simulated minutes. Road load is active vehicles divided by estimated lane-length capacity.
+
+This is a demonstrator, not a calibrated traffic forecast. It does not model turning movement counts, protected turn phases, pedestrians, vehicle classes, real road geometry, adaptive signals, or measured traffic data. The process keeps one in-memory simulation shared by connected browsers and is intended for local demonstration, not public multi-user deployment.
