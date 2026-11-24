@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs';
 import { createServer as createHttpServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULTS, LIMITS, NETWORKS, TrafficSimulation, runScenario, validateConfig } from './simulation.js';
+import { DEFAULTS, LIMITS, NETWORKS, TrafficSimulation, runControllerComparison, runScenario, validateConfig } from './simulation.js';
 
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
@@ -47,6 +47,10 @@ export function createServer() {
         if (first.demand !== second.demand || first.seed !== second.seed) throw new RangeError('compared scenarios must use the same demand and seed');
         const results = [runScenario(first, duration), runScenario(second, duration)];
         return sendJson(response, 200, { duration, results });
+      }
+      if (request.method === 'POST' && url.pathname === '/api/simulation/compare-control') {
+        const body = await readJson(request);
+        return sendJson(response, 200, runControllerComparison(body.config || {}, body.duration ?? 180));
       }
       if (request.method !== 'GET' && request.method !== 'HEAD') return sendJson(response, 405, { error: 'method not allowed' });
       let pathname;

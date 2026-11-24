@@ -10,14 +10,22 @@
     if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
     return body;
   };
-  const selectedConfig = () => ({ network: $('#network').value, demand: Number($('#demand').value), lanes: Number($('#road-width').value), greenSeconds: Number($('#signal-green').value), seed: 2026 });
+  const selectedConfig = () => ({ network: $('#network').value, demand: Number($('#demand').value), lanes: Number($('#road-width').value), greenSeconds: Number($('#signal-green').value), controller: $('#controller').value, seed: 2026 });
   const setStatus = (label, active = false) => { $('#status').textContent = label; $('#status-dot').classList.toggle('running', active); };
-  const updateMetrics = (metrics) => {
+  const updateMetrics = (metrics, signals = []) => {
     $('#cars').textContent = metrics.activeVehicles;
+    $('#queue').textContent = metrics.averageQueueLength.toFixed(1);
+    $('#queue-detail').textContent = `vehicles / junction · peak ${metrics.peakQueueLength}`;
     $('#wait').textContent = metrics.averageWaitMinutes === null ? '—' : metrics.averageWaitMinutes.toFixed(2);
     $('#travel').textContent = metrics.averageTravelMinutes === null ? '—' : metrics.averageTravelMinutes.toFixed(2);
     $('#flow').textContent = metrics.throughputPerMinute.toFixed(1);
     $('#load').textContent = `${metrics.roadLoadPercent}%`;
+    const adaptive = state.config?.controller === 'adaptive';
+    $('#controller-mode-label').textContent = adaptive ? 'ADAPTIVE · SPILLBACK AWARE' : 'FIXED-TIME BASELINE';
+    const prioritySignal = signals.find(signal => signal.spillbackRisk) || signals.find(signal => signal.downstreamBlockedVehicles > 0) || signals[0];
+    $('#controller-explanation').textContent = prioritySignal?.explanation || 'No signalized junctions in this grade-separated layout.';
+    const list = $('#signal-decisions');
+    list.replaceChildren(...signals.map(signal => { const item = document.createElement('li'); item.textContent = `Junction ${signal.nodeId + 1} · ${signal.phase} green, ${Math.ceil(signal.remainingSeconds)}s left · queue ${signal.queueLength} · downstream free slots ${signal.downstreamFreeSlots} (${signal.downstreamBlockedVehicles} blocked) · ${signal.explanation}`; return item; }));
     const minutes = Math.floor(metrics.simulatedSeconds / 60), seconds = Math.floor(metrics.simulatedSeconds % 60);
     $('#clock').textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
@@ -58,11 +66,11 @@
       const p = point(node, width, height), signal = signalMap.get(node.id);
       ctx.beginPath(); ctx.arc(p.x, p.y, node.signal ? 6 : 4.5, 0, Math.PI * 2); ctx.fillStyle = node.signal ? '#dfe8ed' : '#a7e4c2'; ctx.fill();
       if (signal) {
-        ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI * 2); ctx.strokeStyle = '#a7e4c244'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI * 2); ctx.strokeStyle = signal.spillbackRisk ? '#ffac77' : '#a7e4c244'; ctx.lineWidth = 1; ctx.stroke();
         ctx.fillStyle = signal.phase === 'NS' ? '#a7e4c2' : '#ed7181'; ctx.beginPath(); ctx.arc(p.x + 13, p.y - 11, 3, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = signal.phase === 'EW' ? '#a7e4c2' : '#ed7181'; ctx.beginPath(); ctx.arc(p.x + 21, p.y - 11, 3, 0, Math.PI * 2); ctx.fill();
         ctx.font = '8px monospace'; ctx.textAlign = 'left'; ctx.fillStyle = '#c1ccd5';
-        ctx.fillText(`${signal.phase} ${Math.ceil(signal.remainingSeconds)}s`, p.x + 27, p.y - 8);
+        ctx.fillText(`${signal.phase} ${Math.ceil(signal.remainingSeconds)}s Q${signal.queueLength}`, p.x + 27, p.y - 8);
       }
     }
     for (const car of view.cars) {
@@ -73,7 +81,7 @@
       ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(b.y - a.y, b.x - a.x)); ctx.shadowColor = car.color; ctx.shadowBlur = 8; ctx.fillStyle = car.color;
       ctx.beginPath(); ctx.roundRect(-6, -3.2, 12, 6.4, 2); ctx.fill(); ctx.restore();
     }
-    updateMetrics(view.metrics);
+    updateMetrics(view.metrics, view.signals);
   }
   async function resetSimulation() {
     state.running = false; state.loopToken++;
@@ -111,9 +119,31 @@
         if (invert) return `${Math.abs(percent).toFixed(0)}% ${percent > 0 ? 'more' : percent < 0 ? 'less' : 'same'}`;
         return `${percent >= 0 ? '+' : ''}${percent.toFixed(0)}%`;
       };
-      $('#comparison-results').innerHTML = `<div class="result-card"><span>A · ${titleA}</span><strong>${a.metrics.throughputPerMinute.toFixed(1)} <small>trips/min</small></strong><small>wait ${a.metrics.averageWaitMinutes?.toFixed(2) ?? '—'} min · travel ${a.metrics.averageTravelMinutes?.toFixed(2) ?? '—'} min</small></div><div class="result-card"><span>B · ${titleB}</span><strong>${b.metrics.throughputPerMinute.toFixed(1)} <small>trips/min</small></strong><small>wait ${b.metrics.averageWaitMinutes?.toFixed(2) ?? '—'} min · travel ${b.metrics.averageTravelMinutes?.toFixed(2) ?? '—'} min</small></div><div class="result-delta"><span>B vs A</span><strong>${delta('throughputPerMinute')}</strong><small>throughput · ${delta('averageWaitMinutes', true)} average wait</small></div>`;
+      $('#comparison-results').innerHTML = `<div class="result-card"><span>A · ${titleA}</span><strong>${a.metrics.throughputPerMinute.toFixed(1)} <small>trips/min</small></strong><small>wait ${a.metrics.averageWaitMinutes?.toFixed(2) ?? '—'} min · queue ${a.metrics.averageQueueLength.toFixed(1)} · congestion ${a.metrics.averageRoadLoadPercent}%</small></div><div class="result-card"><span>B · ${titleB}</span><strong>${b.metrics.throughputPerMinute.toFixed(1)} <small>trips/min</small></strong><small>wait ${b.metrics.averageWaitMinutes?.toFixed(2) ?? '—'} min · queue ${b.metrics.averageQueueLength.toFixed(1)} · congestion ${b.metrics.averageRoadLoadPercent}%</small></div><div class="result-delta"><span>B vs A</span><strong>${delta('throughputPerMinute')}</strong><small>throughput · ${delta('averageWaitMinutes', true)} average wait · ${delta('averageQueueLength', true)} queue</small></div>`;
     } catch (error) { $('#comparison-results').textContent = error.message; }
     finally { button.disabled = false; button.textContent = 'Run comparison'; }
+  }
+  async function compareControllers() {
+    const button = $('#compare-control'); button.disabled = true; button.textContent = 'Running matched trials…';
+    $('#controller-results').textContent = 'Running fixed-time and adaptive simulations with the same arrival trace…';
+    try {
+      const comparison = await api('/api/simulation/compare-control', { config: selectedConfig(), duration: Number($('#controller-duration').value) });
+      const [fixed, adaptive] = comparison.results, f = fixed.metrics, a = adaptive.metrics;
+      const diff = (fixedValue, adaptiveValue, unit, decimals = 1, lowerBetter = true) => {
+        const difference = adaptiveValue - fixedValue;
+        const favorableDirection = lowerBetter ? difference < 0 : difference > 0;
+        const direction = difference === 0 ? 'unchanged' : `${Math.abs(difference).toFixed(decimals)} ${unit} ${favorableDirection ? 'lower' : 'higher'}`;
+        return direction;
+      };
+      const throughputPercent = f.throughputPerMinute ? (a.throughputPerMinute - f.throughputPerMinute) / f.throughputPerMinute * 100 : null;
+      const throughputChange = throughputPercent === null ? 'no fixed-time trips' : `${throughputPercent >= 0 ? '+' : ''}${throughputPercent.toFixed(2)}%`;
+      const waitChange = f.averageWaitMinutes == null || a.averageWaitMinutes == null ? 'not available' : diff(f.averageWaitMinutes, a.averageWaitMinutes, 'min', 2);
+      const queueChange = diff(f.averageQueueLength, a.averageQueueLength, 'vehicles / junction', 2);
+      const congestionChange = diff(f.averageRoadLoadPercent, a.averageRoadLoadPercent, 'percentage points');
+      const card = (label, metrics) => `<div class="result-card"><span>${label}</span><strong>${metrics.throughputPerMinute.toFixed(1)} <small>trips/min</small></strong><small>wait ${metrics.averageWaitMinutes?.toFixed(2) ?? '—'} min · queue ${metrics.averageQueueLength.toFixed(1)} (peak ${metrics.peakQueueLength}) · congestion ${metrics.averageRoadLoadPercent}% · spillback events ${metrics.spillbackEvents}</small></div>`;
+      $('#controller-results').innerHTML = `${card('A · FIXED-TIME', f)}${card('B · ADAPTIVE SPILLBACK-AWARE', a)}<div class="result-delta"><span>ADAPTIVE VS FIXED</span><strong>${throughputChange} throughput</strong><small>wait ${waitChange} · queue ${queueChange} · congestion ${congestionChange}<br>Matched demand trace: ${f.arrivalEvents} arrivals · seed ${comparison.config.seed}</small></div>`;
+    } catch (error) { $('#controller-results').textContent = error.message; }
+    finally { button.disabled = false; button.textContent = 'Run controller comparison'; }
   }
   $('#demand').addEventListener('input', event => { $('#demand-value').textContent = event.target.value; });
   $('#road-width').addEventListener('input', event => { const value = Number(event.target.value); $('#width-value').textContent = `${value} ${value === 1 ? 'lane' : 'lanes'}`; });
@@ -122,6 +152,7 @@
   $('#road-width').addEventListener('change', () => { resetSimulation().catch(showError); });
   $('#signal-green').addEventListener('change', () => { resetSimulation().catch(showError); });
   $('#network').addEventListener('change', () => { resetSimulation().catch(showError); });
+  $('#controller').addEventListener('change', () => { resetSimulation().catch(showError); });
   $('#play').addEventListener('click', () => {
     if (state.busy) return;
     state.running = !state.running; state.loopToken++;
@@ -134,6 +165,7 @@
     state.speed = Number(button.dataset.speed); document.querySelectorAll('.segmented button').forEach(item => item.classList.toggle('selected', item === button));
   }));
   $('#compare').addEventListener('click', compareScenarios);
+  $('#compare-control').addEventListener('click', compareControllers);
   const dialog = $('#about'); $('#help-button').addEventListener('click', () => dialog.showModal()); $('.dialog-close').addEventListener('click', () => dialog.close());
   window.addEventListener('resize', draw);
   function showError(error) { setStatus('ERROR'); $('#comparison-results').textContent = error.message; }
@@ -141,7 +173,7 @@
     try {
       const config = await api('/api/config');
       state.networks = new Map(config.networks.map(network => [network.id, network.title]));
-      $('#network').value = config.defaults.network; $('#demand').value = config.defaults.demand; $('#road-width').value = config.defaults.lanes; $('#signal-green').value = config.defaults.greenSeconds;
+      $('#network').value = config.defaults.network; $('#demand').value = config.defaults.demand; $('#road-width').value = config.defaults.lanes; $('#signal-green').value = config.defaults.greenSeconds; $('#controller').value = config.defaults.controller;
       $('#demand-value').textContent = config.defaults.demand; $('#width-value').textContent = `${config.defaults.lanes} lanes`; $('#signal-value').textContent = `${config.defaults.greenSeconds} sec`;
       await resetSimulation(); requestAnimationFrame(function render() { draw(); requestAnimationFrame(render); });
     } catch (error) { showError(error); $('#map-title').textContent = 'Server unavailable'; }

@@ -25,6 +25,8 @@
         <div class="panel-heading"><span class="step">01</span><h2>Set the scene</h2></div>
         <label class="field-label" for="network">ROAD NETWORK</label>
         <div class="select-wrap"><select id="network"><option value="grid">Downtown grid</option><option value="cross">Four-way junction</option><option value="flyover">Crossing flyover</option><option value="arterial">Wide arterial</option></select><span>⌄</span></div>
+        <label class="field-label gap-top" for="controller">SIGNAL STRATEGY</label>
+        <div class="select-wrap"><select id="controller"><option value="adaptive">Adaptive · spillback-aware</option><option value="fixed">Fixed-time baseline</option></select><span>⌄</span></div>
         <div class="field-row"><label class="field-label" for="demand">ARRIVALS / MIN</label><output id="demand-value">24</output></div>
         <input id="demand" type="range" min="1" max="90" value="24" aria-label="Arrivals per minute">
         <div class="range-labels"><span>Quiet</span><span>Rush hour</span></div>
@@ -38,20 +40,23 @@
         <div class="panel-heading"><span class="step">02</span><h2>Run the model</h2></div>
         <div class="button-row"><button class="primary-button" id="play"><span class="play-icon">▶</span> Start simulation</button><button class="square-button" id="reset" aria-label="Reset simulation" title="Reset">↺</button></div>
         <div class="speed-row"><span>SIMULATION SPEED</span><div class="segmented" role="group" aria-label="Simulation speed"><button data-speed="1" class="selected">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button></div></div>
-        <div class="note"><span class="note-icon">i</span><p>Cars choose routes around congestion. Signal phases alternate north/south and east/west green windows; lane count sets road capacity.</p></div>
+        <div class="note"><span class="note-icon">i</span><p>Adaptive signals extend greens for queued demand and cut service when downstream storage is blocked. Fixed-time control remains available as the baseline.</p></div>
       </aside>
 
       <section class="panel map-panel" aria-label="Traffic simulation">
         <div class="map-toolbar"><div><span class="step">LIVE VIEW</span><h2 id="map-title">Downtown grid</h2></div><div class="map-status"><span class="status-dot" id="status-dot"></span><span id="status">READY</span></div></div>
+        <section class="controller-insight" aria-label="Signal controller explanation"><span class="insight-tag" id="controller-mode-label">ADAPTIVE CONTROL</span><p id="controller-explanation">Waiting for traffic measurements.</p><details><summary>Junction-by-junction decisions</summary><ul id="signal-decisions"></ul></details></section>
         <div class="canvas-wrap"><canvas id="city" aria-label="Animated traffic network visualization"></canvas><div class="map-legend"><span><i class="legend-road"></i>Road</span><span><i class="legend-car"></i>Vehicle</span><span><i class="legend-junction"></i>Junction</span><span><i class="legend-bridge"></i>Flyover</span><span><i class="legend-green"></i>Green</span></div><div class="canvas-caption">SIGNALS CYCLE WITH SIMULATION TIME <span>·</span> FLYOVERS CROSS WITHOUT A JUNCTION</div></div>
         <div class="metrics">
           <div class="metric"><span>ON THE ROAD</span><strong id="cars">0</strong><small>vehicles</small></div>
+          <div class="metric"><span>AVG. QUEUE</span><strong id="queue">0.0</strong><small id="queue-detail">vehicles / junction · peak 0</small></div>
           <div class="metric"><span>AVG. WAIT</span><strong id="wait">—</strong><small>minutes per trip</small></div>
           <div class="metric"><span>AVG. TRAVEL</span><strong id="travel">—</strong><small>minutes per trip</small></div>
           <div class="metric"><span>THROUGHPUT</span><strong id="flow">0.0</strong><small>completed trips / min</small></div>
-          <div class="metric"><span>ROAD LOAD</span><strong id="load">0%</strong><small>average density</small></div>
+          <div class="metric"><span>CONGESTION</span><strong id="load">0%</strong><small>road storage used</small></div>
         </div>
         <section class="comparison" aria-label="Scenario comparison"><div class="comparison-head"><div><span class="step">EXPERIMENT</span><h2>Compare scenarios</h2></div><button class="compare-button" id="compare">Run comparison</button></div><div class="compare-controls"><label for="compare-network">Compare <strong id="current-scenario">Downtown grid</strong> with</label><select id="compare-network"><option value="flyover">Crossing flyover</option><option value="grid">Downtown grid</option><option value="cross">Signalized cross</option><option value="arterial">Wide arterial</option></select><label for="compare-duration">for</label><select id="compare-duration"><option value="120">2 minutes</option><option value="180" selected>3 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option></select></div><div class="comparison-results" id="comparison-results" aria-live="polite"><span>Same demand, lane count, signal timing, and random seed are used for a fair comparison.</span></div></section>
+        <section class="comparison controller-comparison" aria-label="Fixed-time versus adaptive controller evaluation"><div class="comparison-head"><div><span class="step">RESEARCH EVALUATION</span><h2>Fixed-time vs adaptive</h2></div><button class="compare-button" id="compare-control">Run controller comparison</button></div><div class="compare-controls"><span>Same network, arrival rate, lanes, signal timing, and seed. Both runs receive an identical demand trace.</span><label for="controller-duration">Run length</label><select id="controller-duration"><option value="120">2 minutes</option><option value="180" selected>3 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option></select></div><div class="comparison-results" id="controller-results" aria-live="polite"><span>Compare fixed-time signals with spillback-aware adaptive control.</span></div></section>
       </section>
     </section>
     <footer><span>FLOW STATE <span class="footer-muted">· TRAFFIC SIMULATION</span></span><span>Built to explore how small changes shape a city.</span></footer>

@@ -14,6 +14,8 @@ test('HTTP API serves the app, validates scenario setup, advances vehicles and c
   assert.equal(page.status, 200);
   const html = await page.text();
   assert.match(html, /Compare scenarios/);
+  assert.match(html, /Fixed-time vs adaptive/);
+  assert.match(html, /id="controller"/);
   assert.match(html, /id="demand" type="range" min="1" max="90"/);
   const configResponse = await get('/api/config');
   assert.equal(configResponse.status, 200);
@@ -39,4 +41,13 @@ test('HTTP API serves the app, validates scenario setup, advances vehicles and c
   assert.equal(comparison.results[0].metrics.simulatedSeconds, 60);
   assert.equal(comparison.results[0].config.network, 'grid');
   assert.equal(comparison.results[1].config.network, 'flyover');
+
+  const controllerComparisonResponse = await post('/api/simulation/compare-control', { config: { network: 'grid', demand: 30, lanes: 2, greenSeconds: 8, seed: 5 }, duration: 60 });
+  assert.equal(controllerComparisonResponse.status, 200);
+  const controllerComparison = await controllerComparisonResponse.json();
+  assert.equal(controllerComparison.sameDemandTrace, true);
+  assert.equal(controllerComparison.results[0].config.controller, 'fixed');
+  assert.equal(controllerComparison.results[1].config.controller, 'adaptive');
+  assert.equal(controllerComparison.results[0].metrics.arrivalEvents, 30);
+  assert.equal(controllerComparison.results[0].metrics.demandSignature, controllerComparison.results[1].metrics.demandSignature);
 });
