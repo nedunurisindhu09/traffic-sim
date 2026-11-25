@@ -1,38 +1,37 @@
 # Flow State — Traffic Lab
 
-Flow State is a full-stack, agent-based traffic simulator. A small Node.js API runs the authoritative traffic model; the browser configures experiments and renders live vehicles, roads, junction signals, and analytics.
+Flow State is a full-stack, agent-based traffic simulation for exploring how demand, road capacity, and signal control affect queues. A Node.js API runs the model; the browser configures scenarios, animates vehicle agents, and displays live measurements and paired experiments.
 
-## Requirements and run
+## Run locally
 
-- Node.js 18 or newer (built-in `fetch`, HTTP, and test runner APIs are used).
-- No third-party packages or API keys are required.
-
-From the project directory:
+Requirements: Node.js 18 or newer. The application has no runtime package dependencies or API keys.
 
 ```powershell
 node server.js
 ```
 
-Open <http://127.0.0.1:4173>. To use a different port, set `PORT` before starting the server. On Windows PowerShell, run the test suite with:
+Open <http://127.0.0.1:4173>. Run the automated suite with `npm.cmd test` in PowerShell (or `npm test` on systems where npm is available directly).
 
-```powershell
-npm.cmd test
-```
+## What you can explore
 
-## Features
+- Four road networks, including a grade-separated flyover.
+- Arrival demand from 1–90 vehicles/minute, one to four lanes per direction, and 4–45 seconds per signal phase.
+- Individual vehicles that route, move, queue, and wait at signalized junctions.
+- Downstream link storage checks that stop a vehicle from entering a full road.
+- Fixed-time and spillback-aware adaptive signal control, with a per-signal explanation of the current decision.
+- Live active vehicle count, average wait and travel time for completed trips, completed trips per minute, time-averaged queue and congestion, peak queue, and spillback events.
+- Matched network scenarios and fixed-versus-adaptive trials. Controller trials use the same seed and verify that both runs receive the same origin/destination arrival trace. The displayed results are measurements, not a promise that adaptive control will perform better.
 
-- Four configurable networks: downtown grid, signalized cross, crossing flyover, and wide arterial.
-- Vehicles spawn at a configurable arrival rate (1–90 per simulated minute), choose shortest routes with a live congestion cost, and move as individual agents along road links.
-- One to four lanes in each direction change vehicle capacity and lane assignment.
-- Junctions with three or more connected roads receive alternating north/south and east/west green phases. The fixed-time baseline uses the selected 4–45 second phase length. Adaptive control changes its bounded green target from observed approach demand, queued vehicles, downstream free storage, and spillback risk.
-- Each junction reports approach demand, stopped queue length, downstream free slots, and spillback. A queue filling at least 70% of an incoming link flags the adjacent upstream signal; adaptive control reduces service toward that blocked exit. Vehicle releases are gated on real downstream lane storage and an open entry gap.
-- The flyover crosses the other road at a separate graph level. Vehicles can cross visually, but the two streams do not share an intersection.
-- Live average wait and travel time per completed trip, completed trips per simulated minute, active vehicles, road load, and signal phases.
-- Matched-seed scenario comparison holds demand, lane count, signal timing, and seed constant while changing the road network. Comparison duration is configurable from 1–10 minutes.
-- Fixed-time versus adaptive controller evaluation runs both policies on the same network with the same arrival rate, random seed, and exogenous origin/destination arrival trace. Results include wait, throughput, average and peak queues, average congestion, and detected spillback events. The UI reports measured deltas without assuming adaptive control wins.
+## Project documentation
 
-## Model and limitations
+- [Architecture](ARCHITECTURE.md): application layers, API routes, session behavior, and deployment shape.
+- [Simulation methodology](METHODOLOGY.md): model assumptions, controller rule, metrics, and reproducibility.
+- [Demonstration guide](DEMO.md): a short, repeatable walkthrough and screenshot instructions.
 
-The simulation uses a fixed-step, microscopic agent model with shortest-path routing, per-lane following distance, junction occupancy, signal phases, and downstream storage checks. Scenario comparisons use a seeded random generator and a hashed arrival trace for repeatability. Average wait and travel time are computed over completed trips; throughput is completed trips divided by elapsed simulated minutes. Road load is active vehicles divided by estimated lane-length capacity; average queue and congestion are time-averaged during the run.
+## Deployment preparation
 
-This is a demonstrator, not a calibrated traffic forecast. It does not model turning movement counts, protected turn phases, pedestrians, vehicle classes, real road geometry, adaptive signals, or measured traffic data. The process keeps one in-memory simulation shared by connected browsers and is intended for local demonstration, not public multi-user deployment.
+The repository includes a Dockerfile and Render Blueprint for a public demo. Review [DEPLOYMENT.md](DEPLOYMENT.md) before using them. The application has not been published or deployed. It uses in-memory sessions and simulation state, which are suitable for a small single-instance demonstration but are not persistent and do not support coordinated multi-instance hosting.
+
+## Scope and limitations
+
+This is an exploratory demonstrator, not a calibrated traffic forecast. Its small synthetic networks and simplified movement, two-axis signal phases, routing, and storage heuristics do not represent a real city or validated traffic engineering control policy. It omits measured traffic data, turning movement counts, protected turns, pedestrians, vehicle classes, incidents, and realistic geometry. Results depend on the chosen network, seed, and model assumptions.
